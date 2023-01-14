@@ -6,7 +6,7 @@ set -e
 #                                                                           #
 # Project 'pterodactyl-installer'                                           #
 #                                                                           #
-# Copyright (C) 2018 - 2021, Vilhelm Prytz, <vilhelm@prytznet.se>           #
+# Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>           #
 #                                                                           #
 #   This program is free software: you can redistribute it and/or modify    #
 #   it under the terms of the GNU General Public License as published by    #
@@ -28,7 +28,10 @@ set -e
 #                                                                           #
 #############################################################################
 
-SCRIPT_VERSION="v0.8.1"
+SCRIPT_VERSION="v0.10.0"
+GITHUB_BASE_URL="https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer"
+
+LOG_PATH="/var/log/pterodactyl-installer.log"
 
 # exit with error status code if user is not root
 if [[ $EUID -ne 0 ]]; then
@@ -56,11 +59,18 @@ error() {
   echo ""
 }
 
+execute() {
+  echo -e "\n\n* pterodactyl-installer $(date) \n\n" >> $LOG_PATH
+
+  bash <(curl -s "$1") | tee -a $LOG_PATH
+  [[ -n $2 ]] && execute "$2"
+}
+
 done=false
 
 output "Pterodactyl installation script @ $SCRIPT_VERSION"
 output
-output "Copyright (C) 2018 - 2021, Vilhelm Prytz, <vilhelm@prytznet.se>"
+output "Copyright (C) 2018 - 2022, Vilhelm Prytz, <vilhelm@prytznet.se>"
 output "https://github.com/vilhelmprytz/pterodactyl-installer"
 output
 output "Sponsoring/Donations: https://github.com/vilhelmprytz/pterodactyl-installer?sponsor=1"
@@ -68,29 +78,17 @@ output "This script is not associated with the official Pterodactyl Project."
 
 output
 
-panel() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/$SCRIPT_VERSION/install-panel.sh)
-}
+PANEL_LATEST="$GITHUB_BASE_URL/$SCRIPT_VERSION/install-panel.sh"
 
-wings() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/$SCRIPT_VERSION/install-wings.sh)
-}
+WINGS_LATEST="$GITHUB_BASE_URL/$SCRIPT_VERSION/install-wings.sh"
 
-legacy_panel() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/$SCRIPT_VERSION/legacy/panel_0.7.sh)
-}
+PANEL_LEGACY="$GITHUB_BASE_URL/$SCRIPT_VERSION/legacy/panel_0.7.sh"
 
-legacy_wings() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/$SCRIPT_VERSION/legacy/daemon_0.6.sh)
-}
+WINGS_LEGACY="$GITHUB_BASE_URL/$SCRIPT_VERSION/legacy/daemon_0.6.sh"
 
-canary_panel() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/master/install-panel.sh)
-}
+PANEL_CANARY="$GITHUB_BASE_URL/master/install-panel.sh"
 
-canary_wings() {
-  bash <(curl -s https://raw.githubusercontent.com/vilhelmprytz/pterodactyl-installer/master/install-wings.sh)
-}
+WINGS_CANARY="$GITHUB_BASE_URL/master/install-wings.sh"
 
 while [ "$done" == false ]; do
   options=(
@@ -104,21 +102,21 @@ while [ "$done" == false ]; do
 
     "Install panel with canary version of the script (the versions that lives in master, may be broken!)"
     "Install Wings with canary version of the script (the versions that lives in master, may be broken!)"
-    "Install both [5] and [6] on the same machine (wings script runs after panel)"
+    "Install both [6] and [7] on the same machine (wings script runs after panel)"
   )
 
   actions=(
-    "panel"
-    "wings"
-    "panel; wings"
+    "$PANEL_LATEST"
+    "$WINGS_LATEST"
+    "$PANEL_LATEST;$WINGS_LATEST"
 
-    "legacy_panel"
-    "legacy_wings"
-    "legacy_panel; legacy_wings"
+    "$PANEL_LEGACY"
+    "$WINGS_LEGACY"
+    "$PANEL_LEGACY;$WINGS_LEGACY"
 
-    "canary_panel"
-    "canary_wings"
-    "canary_panel; canary_wings"
+    "$PANEL_CANARY"
+    "$WINGS_CANARY"
+    "$PANEL_CANARY;$WINGS_CANARY"
   )
 
   output "What would you like to do?"
@@ -134,5 +132,5 @@ while [ "$done" == false ]; do
 
   valid_input=("$(for ((i = 0; i <= ${#actions[@]} - 1; i += 1)); do echo "${i}"; done)")
   [[ ! " ${valid_input[*]} " =~ ${action} ]] && error "Invalid option"
-  [[ " ${valid_input[*]} " =~ ${action} ]] && done=true && eval "${actions[$action]}"
+  [[ " ${valid_input[*]} " =~ ${action} ]] && done=true && IFS=";" read -r i1 i2 <<< "${actions[$action]}" && execute "$i1" "$i2"
 done
